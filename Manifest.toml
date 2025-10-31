@@ -2,7 +2,7 @@
 
 julia_version = "1.10.10"
 manifest_format = "2.0"
-project_hash = "e9b5f8c5dde5939b428bb68bdd081f5d81d18edb"
+project_hash = "53e36774ef1cb2b653b460e90f570f3a919f7c90"
 
 [[deps.Adapt]]
 deps = ["LinearAlgebra", "Requires"]
@@ -171,9 +171,9 @@ version = "1.14.0"
 
 [[deps.FinEtools]]
 deps = ["DataDrop", "DelimitedFiles", "HDF5", "LinearAlgebra", "LoopVectorization", "Printf", "Random", "SparseArrays", "Statistics", "SymRCM", "Test", "Unicode", "WriteVTK"]
-git-tree-sha1 = "95e040a5bdd493d9081aaf25a21a62a6d9901e68"
+path = "C:\\Users\\Murtaza\\.julia\\dev\\FinEtools"
 uuid = "91bb5406-6c9a-523d-811d-0644c4229550"
-version = "8.0.28"
+version = "8.1.1"
 
 [[deps.HDF5]]
 deps = ["Compat", "HDF5_jll", "Libdl", "MPIPreferences", "Mmap", "Preferences", "Printf", "Random", "Requires", "UUIDs"]
