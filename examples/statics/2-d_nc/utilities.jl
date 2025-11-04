@@ -4,10 +4,13 @@ function build_D_matrix(fens_i, fens_sd, boundarys_fes_sd; tol=1e-8)
     edge_nodes_sd = unique(vcat(boundarys_fes_sd...))
     fens_u, fes_u, M_u = build_union_mesh(fens_i, fens_sd, edge_nodes_sd)
     X = fens_u.xyz[ :, 1:2]
-    Pi_phi = Lagrange_interpolation_matrix(X, fens_i.xyz[:, 1:2], fes_i.conn, 1; tol=tol)
-    Pi_NC = Lagrange_interpolation_matrix(X, fens_sd.xyz[edge_nodes_sd, 1:2], boundarys_fes_sd.conn, 1; tol=tol)
-    C = Pi_Phi.T * M_u * Pi_NC
-    
+    Pi_phi = Lagrange_interpolation_matrix(X, fens_i.xyz[:, 1:2], fes_i.conn, 1)
+    Pi_NC = Lagrange_interpolation_matrix(X, fens_sd.xyz[edge_nodes_sd, 1:2], boundarys_fes_sd.conn, 1)
+    C = Pi_phi' * M_u * Pi_NC
+    R = build_R_from_node_ids(edge_nodes_sd, count(fens_sd); dim_u=1)
+    S = build_S_from_elements(fens_u.xyz[:, 1:2], fes_u.conn,
+                              fens_sd.xyz[:, 1:2], fes_sd.conn, 1; tol=tol, dim_u=1)
+
 end
 
 function build_union_mesh(fens_i, fens_sd, edge_nodes_sd)
@@ -26,7 +29,7 @@ function build_union_mesh(fens_i, fens_sd, edge_nodes_sd)
     return fens_u, fes_u, M_u
 end
 
-function Lagrange_interpolation_matrix(X, Y, conn, p; tol = 1e-8)
+function Lagrange_interpolation_matrix(X, Y, conn, p; dim_u=1, tol = 1e-8)
     eps_end = tol
     npts = size(X, 1)
     nnds = size(Y, 1)
@@ -40,21 +43,27 @@ function Lagrange_interpolation_matrix(X, Y, conn, p; tol = 1e-8)
             in_elem, xi, dist = point_in_element((Float64(X[r,1]), Float64(X[r,2])), Y, nodes, p; tol=tol)
             in_elem||continue
             if abs(xi + 1.0) <= eps_end
-                push!(I,r)
-                push!(J,nodes[1])
-                push!(V,1.0)
+                for k in 0:(dim_u-1)
+                    push!(I, (r-1)*dim_u + k + 1)
+                    push!(J, (nodes[1]-1)*dim_u + k + 1)
+                    push!(V, 1.0)
+                end
                 break
             elseif abs(xi - 1.0) <= eps_end
-                push!(I,r)
-                push!(J,nodes[end])
-                push!(V,1.0)
+                for k in 0:(dim_u-1)
+                    push!(I, (r-1)*dim_u + k + 1)
+                    push!(J, (nodes[end]-1)*dim_u + k + 1)
+                    push!(V, 1.0)
+                end
                 break
             else
                 N = lagrange_1d(xi, p)
                 for a in 1:(p+1)
-                    push!(I,r)
-                    push!(J,nodes[a])
-                    push!(V,N[a])
+                    for k in 0:(dim_u-1)
+                        push!(I, (r-1)*dim_u + k + 1)
+                        push!(J, (nodes[a]-1)*dim_u + k + 1)
+                        push!(V, N[a])
+                    end
                 end
                 break
             end
@@ -65,7 +74,7 @@ function Lagrange_interpolation_matrix(X, Y, conn, p; tol = 1e-8)
         error("Lagrange interpolation matrix has values greater than 1.")
     end
 
-    sparse(I, J, V, npts, nnds)
+    sparse(I, J, V, dim_u*npts, dim_u*nnds)
 end
 
 function lagrange_1d(xi, p)
@@ -120,7 +129,6 @@ end
 function curve_map(xi, Y, nodes, p)
     N   = lagrange_1d(xi, p)
     dN  = lagrange_shapes_deriv_1d(p, xi)
-    ddN = lagrange_shapes_dd_1d(p, xi)
     x = 0.0; y = 0.0
     dx = 0.0; dy = 0.0
     for a in 1:p+1
@@ -165,7 +173,58 @@ function point_in_element(P, Y,
     return (ok && d <= tol && xi >= -1.0 - 1e-12 && xi <= 1.0 + 1e-12), xi, d
 end
 
+function build_R_from_node_ids(interface_nodes, n_total_nodes; dim_u)
+    n_iface = length(interface_nodes)
+    nrows = n_iface * dim_u
+    ncols = n_total_nodes * dim_u
+    I = Int[]; J = Int[]; V = Float64[]
+    for (i, node) in enumerate(interface_nodes)
+        for k in 0:(dim_u-1)
+            push!(I, (i-1)*dim_u + k + 1)
+            push!(J, (node-1)*dim_u + k + 1)
+            push!(V, 1.0)
+        end
+    end
+    return sparse(I, J, V, nrows, ncols)
+end
+
+function build_S_from_elements(fens_u_xyz, conn_u, fens_frame_xyz, conn_frame, p_frame; tol=1e-8, dim_u=1)
+
+    n_u_e = size(conn_u, 1)
+    n_f_e = size(conn_frame, 1)
+    I = Int[]; J = Int[]; V = Float64[]
+
+    @inbounds for q in 1:n_u_e
+        nodes_q = conn_u[q, :]
+        nA = nodes_q[1]; nB = nodes_q[end]
+        A = (Float64(fens_u_xyz[nA,1]), Float64(fens_u_xyz[nA,2]))
+        B = (Float64(fens_u_xyz[nB,1]), Float64(fens_u_xyz[nB,2]))
+        mid = ((A[1]+B[1])/2.0, (A[2]+B[2])/2.0)
+        found = false
+
+        for e in 1:n_f_e
+            nodes_e = conn_frame[e, :]
+            inside, xi, d = point_in_element(mid, fens_frame_xyz, nodes_e, p_frame; tol=tol)
+            if inside
+                for k in 0:(dim_u-1)
+                    push!(I, (q-1)*dim_u + k + 1)
+                    push!(J, (e-1)*dim_u + k + 1)
+                    push!(V, 1.0)
+                end
+                found = true
+                break
+            end
+        end
+        if !found
+            @warn "build_S_from_elements: union element $q not matched to any frame element (tol=$tol)"
+        end
+    end
+
+    return sparse(I, J, V, n_u_e*dim_u, n_f_e*dim_u)
+end
+
+
 x = [0 0; 1 1; 2 4; 3 9; 4 16]
 y = [0  0; 1 1; 2 4; 3 9; 4 16]
 conn = [1 2; 2 3; 3 4; 4 5]
-P = Lagrange_interpolation_matrix(x, y, conn, 1)
+P = Lagrange_interpolation_matrix(x, y, conn, 1; dim_u=1)
