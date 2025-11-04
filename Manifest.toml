@@ -2,7 +2,7 @@
 
 julia_version = "1.10.10"
 manifest_format = "2.0"
-project_hash = "53e36774ef1cb2b653b460e90f570f3a919f7c90"
+project_hash = "11fda9ee3d7096c5ce92078e429cdcab665a6043"
 
 [[deps.Adapt]]
 deps = ["LinearAlgebra", "Requires"]
@@ -171,8 +171,10 @@ version = "1.14.0"
 
 [[deps.FinEtools]]
 deps = ["DataDrop", "DelimitedFiles", "HDF5", "LinearAlgebra", "LoopVectorization", "Printf", "Random", "SparseArrays", "Statistics", "SymRCM", "Test", "Unicode", "WriteVTK"]
-path = "C:\\Users\\Murtaza\\.julia\\dev\\FinEtools"
-uuid = "91bb5406-6c9a-523d-811d-0644c4229550"
+git-tree-sha1 = "bc62660b8b71a09429c4b24cc4a006329043d1d8"
+repo-rev = "main"
+repo-url = "https://github.com/msbookwala/FinEtools.jl"
+uuid = "c470d985-ac36-4012-bfd4-c92e93afba4f"
 version = "8.1.1"
 
 [[deps.HDF5]]
