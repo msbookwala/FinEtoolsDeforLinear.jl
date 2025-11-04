@@ -9,7 +9,11 @@ E = 1.0e5
 nu = 1/3
 MR = DeforModelRed1DStrain
 
-fens, fes = L2block(1.0, 3)
+xs = [0.0, 0.5, 1.0]
+ys = [0.0, 0.0, 0.0]
+fens, fes = L2blockx2D(xs, ys)
+fens, fes = L2block(1.0, 2)
+fens, fes = L2blockx(xs)
 geom = NodalField(fens.xyz)
 u = NodalField(zeros(count(fens), 2))
 numberdofs!(u)
