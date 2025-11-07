@@ -1,31 +1,87 @@
 using SparseArrays
+using LinearAlgebra
+using FinEtools
+using FinEtools.AlgoBaseModule
 
-function build_D_matrix(fens_i, fens_sd, boundarys_fes_sd; tol=1e-8)
-    edge_nodes_sd = unique(vcat(boundarys_fes_sd...))
-    fens_u, fes_u, M_u = build_union_mesh(fens_i, fens_sd, edge_nodes_sd)
+function build_D_matrix(fens_i, fes_i, fens_sd, edge_fes; lam_order = 0,tol=1e-8)
+    # edge_nodes_sd = unique(collect(Iterators.flatten(edge_fes.conn[:])))
+    p = maximum(length.(edge_fes.conn)) - 1
+    fens_u, fes_u, M_u = build_union_mesh(fens_i,fes_i, fens_sd, edge_fes, p; lam_order=lam_order)
     X = fens_u.xyz[ :, 1:2]
-    Pi_phi = Lagrange_interpolation_matrix(X, fens_i.xyz[:, 1:2], fes_i.conn, 1)
-    Pi_NC = Lagrange_interpolation_matrix(X, fens_sd.xyz[edge_nodes_sd, 1:2], boundarys_fes_sd.conn, 1)
-    C = Pi_phi' * M_u * Pi_NC
-    R = build_R_from_node_ids(edge_nodes_sd, count(fens_sd); dim_u=1)
-    S = build_S_from_elements(fens_u.xyz[:, 1:2], fes_u.conn,
-                              fens_sd.xyz[:, 1:2], fes_sd.conn, 1; tol=tol, dim_u=1)
-
+    
+    Pi_NC = Lagrange_interpolation_matrix(X, fens_sd.xyz[:, 1:2], edge_fes.conn, p; dim_u=2)
+    if lam_order != 0
+        Pi_phi = Lagrange_interpolation_matrix(X, fens_i.xyz[:, 1:2], fes_i.conn, p; dim_u=2)
+        D = Pi_phi' * M_u * Pi_NC
+        return D, Pi_NC, Pi_phi
+    else 
+    # R = build_R_from_node_ids(edge_nodes_sd, count(fens_sd); dim_u=1)
+        S = build_S_from_elements(fens_u.xyz[:, 1:2], fes_u.conn,
+                              fens_i.xyz[:, 1:2], fes_i.conn, 1; tol=tol, dim_u=2)
+        D = S' * M_u * Pi_NC
+        return D, Pi_NC, S
+    end
 end
 
-function build_union_mesh(fens_i, fens_sd, edge_nodes_sd)
-    endpoints = unique(vcat(fens_i.xyz[:, 1], fens_sd.xyz[edge_nodes_sd, 1]))
-    fens_u, fes_u = L2blockx2D(endpoints, fens_i.xyz[:, 2])
-    E = 1.0
-    nu = 0.0
-    rho = 1.0
-    MR = DeforModelRed1D
-    material = MatDeforElastIso(MR, rho, E, nu, 0.0)
+function build_D_matrix(fens_u, fes_u, fens_i, fes_i, fens_sd, edge_fes; lam_order = 0,tol=1e-8)
+    p = maximum(length.(edge_fes.conn)) - 1
+    X = fens_u.xyz[ :, 1:2]
+
+    kappa = [1.0 0; 0 1.0] 
+    material = MatHeatDiff(kappa)
+    geom_u = NodalField(fens_u.xyz)
+    u_u = NodalField(zeros(size(fens_u.xyz, 1), 1))
+    numberdofs!(u_u)
+    femm_u = FEMMHeatDiff(IntegDomain(fes_u, GaussRule(1, 4)), material)
+    if lam_order == 0
+        M_u = mass_like(femm_u, geom_u, u_u)
+    else
+        M_u = mass(femm_u, geom_u, u_u)
+    end
+    
+    Pi_NC = Lagrange_interpolation_matrix(X, fens_sd.xyz[:, 1:2], edge_fes.conn, p)
+    if lam_order != 0
+        Pi_phi = Lagrange_interpolation_matrix(X, fens_i.xyz[:, 1:2], fes_i.conn, p)
+        D = Pi_phi' * M_u * Pi_NC
+        return D, Pi_NC, Pi_phi
+    else 
+    # R = build_R_from_node_ids(edge_nodes_sd, count(fens_sd); dim_u=1)
+        S = build_S_from_elements(fens_u.xyz[:, 1:2], fes_u.conn,
+                              fens_i.xyz[:, 1:2], fes_i.conn, p; tol=tol, dim_u=1)
+        D = S' * M_u * Pi_NC
+        return D, Pi_NC, S
+    end
+end
+
+# TODO: parameterise sort and make it agnostic to the direction. here it is in y direction only
+function build_union_mesh(fens_i,fes_i, fens_sd, edge_fes, p; lam_order = 0)
+    if p==1
+        edge_nodes_sd = unique(collect(Iterators.flatten(edge_fes.conn[:])))
+        endpoints = unique(vcat(fens_i.xyz[:, :], fens_sd.xyz[edge_nodes_sd, :]), dims=1)
+        p = sortperm(endpoints[:, 2])
+        endpoints = endpoints[p, :]
+        fens_u, fes_u = L2blockx2D(endpoints[:, 1], endpoints[:, 2])
+    elseif p==2
+        corner_nodes_sd = unique(stack(edge_fes.conn, dims=1)[:,1:2])
+        corner_nodes_i = unique(stack(fes_i.conn, dims=1)[:,1:2])
+        endpoints = unique(vcat(fens_i.xyz[corner_nodes_i, :], fens_sd.xyz[corner_nodes_sd, :]), dims=1)
+        p = sortperm(endpoints[:, 2])
+        endpoints = endpoints[p, :]
+        fens_u, fes_u = L3blockx2D(endpoints[:, 1], endpoints[:, 2])
+    else
+        error("build_union_mesh: p=$p not implemented")
+    end
     geom_u = NodalField(fens_u.xyz)
     u_u = NodalField(zeros(size(fens_u.xyz, 1), 2))
     numberdofs!(u_u)
+    MR = DeforModelRed2DStress
+    material = MatDeforElastIso(MR, 1.0, 0.0, 0.0, 0.0)
     femm_u = FEMMDeforLinear(MR, IntegDomain(fes_u, GaussRule(1, 2)), material)
-    M_u = mass(femm_u, geom_u, u_u)
+    if lam_order == 0
+        M_u = mass_like(femm_u, geom_u, u_u)
+    else
+        M_u = mass(femm_u, geom_u, u_u)
+    end
     return fens_u, fes_u, M_u
 end
 
@@ -37,9 +93,14 @@ function Lagrange_interpolation_matrix(X, Y, conn, p; dim_u=1, tol = 1e-8)
     I = Int[]
     J = Int[]
     V = Float64[]
+    if p ==1
+        perm = [1,2]
+    elseif p ==2
+        perm = [1,3,2]
+    end
     for r in 1:npts
         for elem_idx in 1:nels
-            nodes = conn[elem_idx, :]
+            nodes = conn[elem_idx][:]
             in_elem, xi, dist = point_in_element((Float64(X[r,1]), Float64(X[r,2])), Y, nodes, p; tol=tol)
             in_elem||continue
             if abs(xi + 1.0) <= eps_end
@@ -52,17 +113,25 @@ function Lagrange_interpolation_matrix(X, Y, conn, p; dim_u=1, tol = 1e-8)
             elseif abs(xi - 1.0) <= eps_end
                 for k in 0:(dim_u-1)
                     push!(I, (r-1)*dim_u + k + 1)
-                    push!(J, (nodes[end]-1)*dim_u + k + 1)
+                    push!(J, (nodes[2]-1)*dim_u + k + 1)
                     push!(V, 1.0)
                 end
                 break
             else
                 N = lagrange_1d(xi, p)
+                N = N[perm]
                 for a in 1:(p+1)
                     for k in 0:(dim_u-1)
-                        push!(I, (r-1)*dim_u + k + 1)
+                        push!(I, (r -1)*dim_u + k + 1)
                         push!(J, (nodes[a]-1)*dim_u + k + 1)
                         push!(V, N[a])
+                        # if a ==1
+                        #     push!(V, N[a])
+                        # elseif a ==2
+                        #     push!(V, N[end])
+                        # else
+                        #     push!(V, N[a-1])
+                        # end
                     end
                 end
                 break
@@ -70,11 +139,11 @@ function Lagrange_interpolation_matrix(X, Y, conn, p; dim_u=1, tol = 1e-8)
         end
     end
     # if max value is >1, give error
-    if maximum(V) > 1.0 + tol
-        error("Lagrange interpolation matrix has values greater than 1.")
-    end
+    # if maximum(V) > 1.0 + tol
+    #     error("Lagrange interpolation matrix has values greater than 1.")
+    # end
 
-    sparse(I, J, V, dim_u*npts, dim_u*nnds)
+    return sparse(I, J, V, dim_u*npts, dim_u*nnds)
 end
 
 function lagrange_1d(xi, p)
@@ -125,12 +194,19 @@ function lagrange_shapes_deriv_1d(p::Int, xi::Float64)
     end
 end
 
-
 function curve_map(xi, Y, nodes, p)
     N   = lagrange_1d(xi, p)
     dN  = lagrange_shapes_deriv_1d(p, xi)
     x = 0.0; y = 0.0
     dx = 0.0; dy = 0.0
+    # temporary change in order of nodes
+    if p ==1
+        perm = [1,2]
+    elseif p ==2
+        perm = [1,3,2]
+    end
+    N = N[perm]
+    dN = dN[perm]
     for a in 1:p+1
         j = nodes[a]
         Xja, Yja = Y[j,1], Y[j,2]
@@ -142,7 +218,7 @@ function curve_map(xi, Y, nodes, p)
 end
 
 function get_xi(P, Y, nodes, p;
-                     xi0=0.0, tol=1e-12, maxiter=20,
+                     xi0=0.0, tol=1e-15, maxiter=200,
                      alpha=1e-12, maxstep=0.5)
     xi = xi0
     for _ in 1:maxiter
@@ -165,8 +241,6 @@ function get_xi(P, Y, nodes, p;
     return xi, dist, false
 end
 
-
-
 function point_in_element(P, Y,
                           nodes, p; tol)
     xi, d, ok = get_xi(P, Y, nodes, p)
@@ -188,22 +262,25 @@ function build_R_from_node_ids(interface_nodes, n_total_nodes; dim_u)
     return sparse(I, J, V, nrows, ncols)
 end
 
-function build_S_from_elements(fens_u_xyz, conn_u, fens_frame_xyz, conn_frame, p_frame; tol=1e-8, dim_u=1)
+function build_S_from_elements(fens_u_xyz, conn_u, fens_frame_xyz, conn_frame, p_frame; tol=1e-4, dim_u=1)
 
     n_u_e = size(conn_u, 1)
     n_f_e = size(conn_frame, 1)
     I = Int[]; J = Int[]; V = Float64[]
 
-    @inbounds for q in 1:n_u_e
-        nodes_q = conn_u[q, :]
-        nA = nodes_q[1]; nB = nodes_q[end]
+    for q in 1:n_u_e
+        nodes_q = conn_u[q][:]
+        nA = nodes_q[1]; nB = nodes_q[2]
         A = (Float64(fens_u_xyz[nA,1]), Float64(fens_u_xyz[nA,2]))
         B = (Float64(fens_u_xyz[nB,1]), Float64(fens_u_xyz[nB,2]))
         mid = ((A[1]+B[1])/2.0, (A[2]+B[2])/2.0)
+        if p_frame == 2
+            mid = (Float64(fens_u_xyz[nodes_q[3],1]), Float64(fens_u_xyz[nodes_q[3],2]))
+        end
         found = false
 
         for e in 1:n_f_e
-            nodes_e = conn_frame[e, :]
+            nodes_e = conn_frame[e][:]
             inside, xi, d = point_in_element(mid, fens_frame_xyz, nodes_e, p_frame; tol=tol)
             if inside
                 for k in 0:(dim_u-1)
@@ -222,9 +299,3 @@ function build_S_from_elements(fens_u_xyz, conn_u, fens_frame_xyz, conn_frame, p
 
     return sparse(I, J, V, n_u_e*dim_u, n_f_e*dim_u)
 end
-
-
-x = [0 0; 1 1; 2 4; 3 9; 4 16]
-y = [0  0; 1 1; 2 4; 3 9; 4 16]
-conn = [1 2; 2 3; 3 4; 4 5]
-P = Lagrange_interpolation_matrix(x, y, conn, 1; dim_u=1)
