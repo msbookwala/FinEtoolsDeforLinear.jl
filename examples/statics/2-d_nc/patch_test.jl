@@ -9,18 +9,24 @@ include("utilities.jl")
 
 println("Q4. Plane stress.")
 
-E = 1.0e5
-nu = 0.2
+E = 1.0
+nu = 1/3
 MR = DeforModelRed2DStress
 material = MatDeforElastIso(MR, 0.0, E, nu, 0.0)
 
 N_elem1 = 20
-N_elem2 = 30
+N_elem2 = 20
 N_elem_i = min(N_elem1, N_elem2)
 left_m = "q"
 right_m = "q"
 skew = 0.0
 lam_order = 1
+
+
+alpha, beta, gamma, delta, eta, phi =
+    1.0 / 30, 1.0 / 34, -1.0 / 21, -1.0 / 51, -1.0 / 26, -1.0 / 35
+ux(x, y) = alpha + beta * x + gamma * y
+uy(x, y) = delta + eta * x + phi * y
 
 #########################################################################################
 width1 = 1.0
@@ -36,7 +42,10 @@ else
 end
 
 boundaryfes1 = meshboundary(fes1)
-edge_fes1 = subset(boundaryfes1, selectelem(fens1, boundaryfes1,  box=[width1,width1, 0.0,height1], inflate=1e-8))
+edge_fe_idx1 = selectelem(fens1, boundaryfes1,  box=[width1,width1, 0.0,height1], inflate=1e-8)
+edge_fes1 = subset(boundaryfes1, edge_fe_idx1)
+dbc_fes_idx1 = setdiff(1:count(boundaryfes1), edge_fe_idx1)
+
 
 fens1.xyz[:, 1] .+= skew * fens1.xyz[:, 1].*(fens1.xyz[:, 2] .- 1.0)
 
@@ -44,11 +53,10 @@ fens1.xyz[:, 1] .+= skew * fens1.xyz[:, 1].*(fens1.xyz[:, 2] .- 1.0)
 geom1 = NodalField(fens1.xyz)
 u1 = NodalField(zeros(size(fens1.xyz, 1), 2)) # displacement field
 
-box1 = [0.0,0.0,0.0,height1]
-dbc_nodes1 = selectnode(fens1; box=box1, inflate=1e-8)
+dbc_nodes1 = unique(stack(boundaryfes1.conn[dbc_fes_idx1]))
 for i in dbc_nodes1
-    setebc!(u1, [i], 1, 0.0)
-    setebc!(u1, [i], 2, 0.0)
+    setebc!(u1, [i], 1, ux(fens1.xyz[i, :]...))
+    setebc!(u1, [i], 2, uy(fens1.xyz[i, :]...))
 end
 
 applyebc!(u1)
@@ -57,8 +65,9 @@ femm = FEMMDeforLinear(MR, IntegDomain(fes1, GaussRule(2, 2)), material)
 
 K1 = stiffness(femm, geom1, u1)
 K1_ff = matrix_blocked(K1, nfreedofs(u1), nfreedofs(u1))[:ff]
+K1_fd = matrix_blocked(K1, nfreedofs(u1), nfreedofs(u1))[:fd]
 F1 = zeros(size(K1, 1))
-F1_ff = vector_blocked(F1, nfreedofs(u1))[:f]
+F1_ff = vector_blocked(F1, nfreedofs(u1))[:f] - K1_fd * gathersysvec(u1, :d)
 
 edge_nodes1 = selectnode(fens1; box=[width1,width1, 0.0,height1], inflate=1e-8)
 #########################################################################################
@@ -78,28 +87,31 @@ fens2.xyz[:, 1] .+= 1.0
 
 
 boundaryfes2 = meshboundary(fes2)
-edge_fes2 = subset(boundaryfes2, selectelem(fens2, boundaryfes2, box=[1.0,1.0, 0.0,height2], inflate=1e-8))
-fens2.xyz[:, 1] .+= skew * (2.0 .-fens2.xyz[:, 1]).*(fens2.xyz[:, 2] .- 1.0)
+edge_fe_idx2 = selectelem(fens2, boundaryfes2, box=[1.0,1.0, 0.0,height2], inflate=1e-8)
+edge_fes2 = subset(boundaryfes2, edge_fe_idx2)
+dbc_fes_idx2 = setdiff(1:count(boundaryfes2), edge_fe_idx2)
 
+fens2.xyz[:, 1] .+= skew * (2.0 .-fens2.xyz[:, 1]).*(fens2.xyz[:, 2] .- 1.0)
 
 geom2 = NodalField(fens2.xyz)
 u2 = NodalField(zeros(size(fens2.xyz, 1), 2)) # displacement field
+
+dbc_nodes2 = unique(stack(boundaryfes2.conn[dbc_fes_idx2]))
+for i in dbc_nodes2
+    setebc!(u2, [i], 1, ux(fens2.xyz[i, :]...))
+    setebc!(u2, [i], 2, uy(fens2.xyz[i, :]...))
+end
+
+applyebc!(u2)
 numberdofs!(u2)
 femm2 = FEMMDeforLinear(MR, IntegDomain(fes2, GaussRule(2, 2)), material)
 K2 = stiffness(femm2, geom2, u2)
 K2_ff = matrix_blocked(K2, nfreedofs(u2), nfreedofs(u2))[:ff]
-# F2 = zeros(size(K2, 1))
-# F2 = [0.0 0.0 0.5 0.0 0.0 0.0 1.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 0.5 0.0]
-right_fe = selectelem(fens2, boundaryfes2, box=[2.0,2.0, 0.0,height2], inflate=1e-8)
-nbc_femm = FEMMBase(IntegDomain(subset(boundaryfes2,right_fe), GaussRule(1,2)))
-function fi_fun(forceout::Vector{T}, XYZ, tangents, feid, qpid) where {T}
-    forceout .=  [1.0, 0.0]
-    return forceout
-end
-fi = ForceIntensity(Float64, 2, fi_fun)
-F2 = distribloads(nbc_femm, geom2, u2, fi, 1);
-F2_ff = vector_blocked(F2, nfreedofs(u2))[:f]
-edge_nodes2 = selectnode(fens2; box=[1.0,1.0, 0.0,height2], inflate=1e-8)
+K2_fd = matrix_blocked(K2, nfreedofs(u2), nfreedofs(u2))[:fd]
+F2 = zeros(size(K2, 1))
+F2_ff = vector_blocked(F2, nfreedofs(u2))[:f] - K2_fd * gathersysvec(u2, :d)
+
+edge_nodes2 = selectnode(fens2; box=[1.0, 1.0, 0.0, height2], inflate=1e-8)
 ##########################################################################################
 
 xs_i = ones(N_elem_i+1)
@@ -113,15 +125,19 @@ numberdofs!(u_i)
 D1,Pi_NC1,Pi_phi1 = build_D_matrix(fens_i, fes_i, fens1, edge_fes1; lam_order=lam_order,tol=1e-8)
 D2,Pi_NC2,Pi_phi2 = build_D_matrix(fens_i, fes_i, fens2, edge_fes2; lam_order=lam_order,tol=1e-8)
 
-dbc_dofs = [2*dbc_nodes1.-1; 2*dbc_nodes1]
-D1 = D1[:,setdiff(1:2*count(fens1), dbc_dofs)]
+dbc_dofs1 = [2*dbc_nodes1.-1; 2*dbc_nodes1]
+dbc_dofs2 = [2*dbc_nodes2.-1; 2*dbc_nodes2]
+
+dbc_lam_f = -(D1[:,dbc_dofs1] * gathersysvec(u1, :d) + D2[:,dbc_dofs2] * gathersysvec(u2, :d))
+D1 = D1[:,setdiff(1:2*count(fens1), dbc_dofs1)]
+D2 = D2[:,setdiff(1:2*count(fens2), dbc_dofs2)]
 
 A = [K1_ff           zeros(size(K1_ff,1), size(K2_ff,2))    D1';
      zeros(size(K2_ff,1), size(K1_ff,2))    K2_ff           -D2';
      D1                     -D2                 zeros(size(D1,1), size(D1,1))]
 B = [F1_ff;
      F2_ff;
-     zeros(size(D1,1))]
+     dbc_lam_f]
 X = A\B
 
 scattersysvec!(u1, X[1:size(K1_ff,1)])
