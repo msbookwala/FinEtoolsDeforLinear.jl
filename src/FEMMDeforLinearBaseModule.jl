@@ -21,13 +21,14 @@ using FinEtools.AssemblyModule:
     AbstractSysvecAssembler,
     AbstractSysmatAssembler,
     SysmatAssemblerSparseSymm,
+    SysmatAssemblerSparse,
     startassembly!,
     assemble!,
     makematrix!,
     makevector!,
     SysvecAssembler
 using FinEtools.FEMMBaseModule: AbstractFEMM
-import FinEtools.FEMMBaseModule: inspectintegpoints, bilform_dot, bilform_lin_elastic
+import FinEtools.FEMMBaseModule: inspectintegpoints, bilform_dot, bilform_lin_elastic, bilform_masslike
 using FinEtools.CSysModule: CSys, updatecsmat!, csmat
 using FinEtools.DeforModelRedModule: nstressstrain, nthermstrain, blmat!, divmat, vgradmat
 using FinEtools.MatrixUtilityModule:
@@ -528,6 +529,25 @@ function infsup_sh(
 ) where {GFT<:Number,UFT<:Number}
     assembler = SysmatAssemblerSparseSymm()
     return infsup_sh(self, assembler, geom, u)
+end
+
+function mass_like(
+    self::AbstractFEMMDeforLinear,
+    assembler::A,
+    geom::NodalField{GFT},
+    u::NodalField{UFT},
+) where {A<:AbstractSysmatAssembler,GFT<:Number,UFT<:Number}
+    cf = DataCache(I(ndofs(u)))
+    return bilform_masslike(self, assembler, geom, u, cf)
+end
+
+function mass_like(
+    self::AbstractFEMMDeforLinear,
+    geom::NodalField{GFT},
+    u::NodalField{UFT},
+) where {GFT<:Number,UFT<:Number}
+    assembler = SysmatAssemblerSparse()
+    return mass_like(self, assembler, geom, u)
 end
 
 end

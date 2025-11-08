@@ -27,27 +27,28 @@ function build_D_matrix(fens_u, fes_u, fens_i, fes_i, fens_sd, edge_fes; lam_ord
     p = maximum(length.(edge_fes.conn)) - 1
     X = fens_u.xyz[ :, 1:2]
 
-    kappa = [1.0 0; 0 1.0] 
-    material = MatHeatDiff(kappa)
+    
+    MR = DeforModelRed2DStress
+    material = MatDeforElastIso(MR, 1.0, 0.0, 0.0, 0.0)
+    femm_u = FEMMDeforLinear(MR, IntegDomain(fes_u, GaussRule(1, 3)), material)
     geom_u = NodalField(fens_u.xyz)
-    u_u = NodalField(zeros(size(fens_u.xyz, 1), 1))
+    u_u = NodalField(zeros(size(fens_u.xyz, 1), 2))
     numberdofs!(u_u)
-    femm_u = FEMMHeatDiff(IntegDomain(fes_u, GaussRule(1, 4)), material)
     if lam_order == 0
         M_u = mass_like(femm_u, geom_u, u_u)
     else
         M_u = mass(femm_u, geom_u, u_u)
     end
     
-    Pi_NC = Lagrange_interpolation_matrix(X, fens_sd.xyz[:, 1:2], edge_fes.conn, p)
+    Pi_NC = Lagrange_interpolation_matrix(X, fens_sd.xyz[:, 1:2], edge_fes.conn, p; dim_u=2)
     if lam_order != 0
-        Pi_phi = Lagrange_interpolation_matrix(X, fens_i.xyz[:, 1:2], fes_i.conn, p)
+        Pi_phi = Lagrange_interpolation_matrix(X, fens_i.xyz[:, 1:2], fes_i.conn, p; dim_u=2)
         D = Pi_phi' * M_u * Pi_NC
         return D, Pi_NC, Pi_phi
     else 
     # R = build_R_from_node_ids(edge_nodes_sd, count(fens_sd); dim_u=1)
         S = build_S_from_elements(fens_u.xyz[:, 1:2], fes_u.conn,
-                              fens_i.xyz[:, 1:2], fes_i.conn, p; tol=tol, dim_u=1)
+                              fens_i.xyz[:, 1:2], fes_i.conn, p; tol=tol, dim_u=2)
         D = S' * M_u * Pi_NC
         return D, Pi_NC, S
     end
