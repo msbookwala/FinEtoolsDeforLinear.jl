@@ -69,9 +69,9 @@ using .MatDeforElastOrthoModule: MatDeforElastOrtho
 export MatDeforElastOrtho
 
 using .FEMMDeforLinearBaseModule:
-    AbstractFEMMDeforLinear, stiffness, thermalstrainloads, mass, inspectintegpoints, mass_like, L2_err
+    AbstractFEMMDeforLinear, stiffness, thermalstrainloads, mass, inspectintegpoints, mass_like, L2_err, L2_err3D
 # Exported: abstract type for linear information, discretization methods for the abstract type
-export AbstractFEMMDeforLinear, stiffness, thermalstrainloads, mass, inspectintegpoints, mass_like, L2_err
+export AbstractFEMMDeforLinear, stiffness, thermalstrainloads, mass, inspectintegpoints, mass_like, L2_err, L2_err3D
 
 using .FEMMDeforLinearModule: FEMMDeforLinear
 # Exported: type for linear deformation

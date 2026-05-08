@@ -4,20 +4,21 @@ using FinEtoolsDeforLinear.AlgoDeforLinearModule
 using FinEtools.MeshExportModule
 import LinearAlgebra: cholesky
 using FinEtools.AlgoBaseModule: matrix_blocked, vector_blocked
-include("utilities.jl")
+using Infiltrator
+include("meshrefine.jl")
 
 
 println("Q4. Plane stress.")
 
 E = 1.0
 nu = 1/3
-MR = DeforModelRed2DStress
+MR = DeforModelRed3D
 material = MatDeforElastIso(MR, 0.0, E, nu, 0.0)
 
-N_elem1 = 22
-N_elem2 = 27
+N_elem1 = 5
+N_elem2 = 3
 N_elem_i = min(N_elem1, N_elem2)
-left_m = "q"
+left_m = "t"
 right_m = "t"
 skew = 0.0
 lam_order = 1
@@ -87,7 +88,7 @@ fens2.xyz[:, 1] .+= 0.5
 
 
 boundaryfes2 = meshboundary(fes2)
-edge_fe_idx2 = selectelem(fens2, boundaryfes2, box=[1.0,1.0, 0.0,height2, 0.0,depth2], inflate=1e-8)
+edge_fe_idx2 = selectelem(fens2, boundaryfes2, box=[0.5,0.5, 0.0,height2, 0.0,depth2], inflate=1e-8)
 edge_fes2 = subset(boundaryfes2, edge_fe_idx2)
 dbc_fes_idx2 = setdiff(1:count(boundaryfes2), edge_fe_idx2)
 
@@ -119,6 +120,7 @@ xs_i = 0.5
 ys_i = collect(linearspace(0.0, 1.0, N_elem_i+1))
 zs_i = collect(linearspace(0.0, 1.0, N_elem_i+1))
 fens_i, fes_i = T3blockx(ys_i, zs_i, :a)
+fens_i.xyz = hcat(xs_i*ones(size(fens_i.xyz, 1), 1), fens_i.xyz)
 
 geom_i = NodalField(fens_i.xyz)
 if lam_order == 0
@@ -128,21 +130,23 @@ else
 end
 numberdofs!(u_i)
 femm_i = FEMMDeforLinear(MR, IntegDomain(fes_i, Rule1), material)
-error("The 3D patch test is not implemented yet. Please use the 2D version instead.")
+@time D1, meta1 = common_refinement(fens1, edge_fes1, fens_i, fes_i; lam_order=lam_order, h=0.03, dim_u=3)
+@time D2, meta2 = common_refinement(fens2, edge_fes2, fens_i, fes_i; lam_order=lam_order, h=0.3, dim_u=3)
+# error("The 3D patch test is not implemented yet. Please use the 2D version instead.")
 
-D1,Pi_NC1,Pi_phi1 = build_D_matrix(fens_i, fes_i, fens1, edge_fes1; lam_order=lam_order,tol=1e-8)
-D2,Pi_NC2,Pi_phi2 = build_D_matrix(fens_i, fes_i, fens2, edge_fes2; lam_order=lam_order,tol=1e-8)
+# D1,Pi_NC1,Pi_phi1 = build_D_matrix(fens_i, fes_i, fens1, edge_fes1; lam_order=lam_order,tol=1e-8)
+# D2,Pi_NC2,Pi_phi2 = build_D_matrix(fens_i, fes_i, fens2, edge_fes2; lam_order=lam_order,tol=1e-8)
 
-dbc_dofs1 = sort([2*dbc_nodes1.-1; 2*dbc_nodes1])
-dbc_dofs2 = sort([2*dbc_nodes2.-1; 2*dbc_nodes2])
+dbc_dofs1 = sort([3*dbc_nodes1.-2; 3*dbc_nodes1.-1; 3*dbc_nodes1])
+dbc_dofs2 = sort([3*dbc_nodes2.-2; 3*dbc_nodes2.-1; 3*dbc_nodes2])
 
 dbc_lam_f = -(D1[:,dbc_dofs1] * gathersysvec(u1, :d) - D2[:,dbc_dofs2] * gathersysvec(u2, :d))
-D1 = D1[:,setdiff(1:2*count(fens1), dbc_dofs1)]
-D2 = D2[:,setdiff(1:2*count(fens2), dbc_dofs2)]
+D1 = D1[:,setdiff(1:3*count(fens1), dbc_dofs1)]
+D2 = D2[:,setdiff(1:3*count(fens2), dbc_dofs2)]
 
-A = [K1_ff           zeros(size(K1_ff,1), size(K2_ff,2))    D1';
-     zeros(size(K2_ff,1), size(K1_ff,2))    K2_ff           -D2';
-     D1                     -D2                 zeros(size(D1,1), size(D1,1))]
+A = [K1_ff           spzeros(size(K1_ff,1), size(K2_ff,2))    D1';
+     spzeros(size(K2_ff,1), size(K1_ff,2))    K2_ff           -D2';
+     D1                     -D2                 spzeros(size(D1,1), size(D1,1))]
 B = [F1_ff;
      F2_ff;
      dbc_lam_f]
@@ -152,8 +156,8 @@ scattersysvec!(u1, X[1:size(K1_ff,1)])
 scattersysvec!(u2, X[size(K1_ff,1)+1:size(K1_ff,1)+size(K2_ff,1)])
 scattersysvec!(u_i, X[size(K1_ff,1)+size(K2_ff,1)+1:end])
 
-err1 = L2_err(femm, geom1, u1, ux, uy)
-err2 = L2_err(femm2, geom2, u2, ux, uy)
+err1 = L2_err3D(femm, geom1, u1, ux, uy, uz)
+err2 = L2_err3D(femm2, geom2, u2, ux, uy, uz)
 
 
 # File1 = "Patch_1.vtk"
@@ -173,7 +177,7 @@ err2 = L2_err(femm2, geom2, u2, ux, uy)
 #     vectors = [("u", u2.values)],
 # )
 
-filename = "Patcht_1.vtk"
+filename = "3D_patch1.vtk"
 vtkexportmesh(
     filename,
     fens1,
@@ -187,7 +191,7 @@ vtkexportmesh(
     ]
 )
 
-filename = "Patcht_2.vtk"
+filename = "3D_patch2.vtk"
 vtkexportmesh(
     filename,
     fens2,

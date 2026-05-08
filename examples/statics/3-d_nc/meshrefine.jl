@@ -1,10 +1,10 @@
 using LinearAlgebra
 using SparseArrays
-using WriteVTK
-using Meshes
+# using WriteVTK
+# using Meshes
 using FinEtools
-using FinEtoolsHeatDiff
-using FinEtoolsHeatDiff.AlgoHeatDiffModule
+using FinEtoolsDeforLinear
+using FinEtoolsDeforLinear.AlgoDeforLinearModule
 # ###############################################################################
 
 function clip_polygon(subject::Vector{Vector{Float64}},
@@ -146,23 +146,31 @@ end
 # ##############################################################################
 function get_node_id(x::Vector{Float64}, node_map, XU,
                      ai, ax, IA, JA, VA, 
-                     bi, bx, IB, JB, VB; order=1)
+                     bi, bx, IB, JB, VB; order=1, dim_u=1)
     # TODO: cannot use anything in the negative
+
     return get!(node_map, abs.(round.(x; digits=5))) do
         # create new node
         push!(XU, x)
         
         baryA = barycentre(x, ax)
-        nids_a = [size(XU,1) for k in 1:length(ai)]
-        nids_b = [size(XU,1) for k in 1:length(bi)]
+        # @infiltrate
+        nids_a = vcat([[dim_u*(size(XU,1)-1) + j for j in 1:dim_u] for k in 1:length(ai)]...)
+        nids_b = vcat([[dim_u*(size(XU,1)-1) + j for j in 1:dim_u] for k in 1:length(bi)]...)
+
+        dofs_a = vcat([[dim_u*(ai[k]-1) + j for j in 1:dim_u] for k in 1:length(ai)]...)
+        baryAs = [baryA[k] for k in 1:length(ai) for j in 1:dim_u]
+
         push!(IA, nids_a...)
-        push!(JA, ai...)
-        push!(VA, baryA...)
+        push!(JA, dofs_a...)
+        push!(VA, baryAs...)
         if order == 1
             baryB = barycentre(x, bx)
+            baryBs = [baryB[k] for k in 1:length(bi) for j in 1:dim_u]
+            dofs_b = vcat([[dim_u*(bi[k]-1) + j for j in 1:dim_u] for k in 1:length(bi)]...)
             push!(IB, nids_b...)
-            push!(JB, bi...)
-            push!(VB, baryB...)
+            push!(JB, dofs_b...)
+            push!(VB, baryBs...)
         end
         size(XU,1)
 
@@ -303,7 +311,7 @@ end
 
 
 # ################################################################################
-function common_refinement(fensA, fesA, fensB, fesB; h = 0.1, lam_order = 1, tri_order = 1, triangulation_type = "naive" )
+function common_refinement(fensA, fesA, fensB, fesB; h = 0.1, lam_order = 1, tri_order = 1, triangulation_type = "naive" , dim_u=1)
                            # connA and connB must be for quads or tri completely for now. hence matrix.
                            # TODO: for mixed quad+tri, add vector of vectors
 
@@ -314,6 +322,7 @@ function common_refinement(fensA, fesA, fensB, fesB; h = 0.1, lam_order = 1, tri
     nA = size(connA,1)
     nB = size(connB,1)
     pad = 1e-2
+    # @infiltrate
     gridB = build_grid(XB, connB; h=h, pad=pad)
 
     parentA = Int[]
@@ -373,7 +382,7 @@ function common_refinement(fensA, fesA, fensB, fesB; h = 0.1, lam_order = 1, tri
                 vs = [clipped[k][1], clipped[k][2], clipped[k][3]]
                 push!(conn, get_node_id(vs, node_map, XU,
                                         ai, ax, IA, JA, VA, 
-                                        bi, bx, IB, JB, VB; order=lam_order))
+                                        bi, bx, IB, JB, VB; order=lam_order, dim_u=dim_u))
             end
             conn = unique(conn)
             nv = length(conn)
@@ -405,9 +414,9 @@ function common_refinement(fensA, fesA, fensB, fesB; h = 0.1, lam_order = 1, tri
                         push!(parentA, i)
                         push!(parentB, j)
                         if lam_order==0
-                            push!(IB, size(connU,1))
-                            push!(JB, j)
-                            push!(VB, 1.0)
+                            push!(IB, [dim_u*(size(connU,1)-1) + j for j in 1:dim_u]...)
+                            push!(JB, [dim_u*(size(connU,1)-1) + j for j in 1:dim_u]...)
+                            push!(VB, [ 1.0 for j in 1:dim_u]...)
                         end
                     end
                 end
@@ -447,27 +456,19 @@ function common_refinement(fensA, fesA, fensB, fesB; h = 0.1, lam_order = 1, tri
                     push!(parentA, i)
                     push!(parentB, j)
                     if lam_order==0
-                        push!(IB, size(connU,1))
-                        push!(JB, j)
-                        push!(VB, 1.0)
+                        push!(IB, [dim_u*(size(connU,1)-1) + j for j in 1:dim_u]...)
+                        push!(JB, [dim_u*(size(connU,1)-1) + j for j in 1:dim_u]...)
+                        push!(VB, [ 1.0 for j in 1:dim_u]...)
                     end
                 end
             end
         end
     end
     # making dimensions consistent for C/D
-    if tri_order ==1
-        fesu = FESetT3(stack(connU, dims=1))
-    elseif tri_order == 2
-        fesu = FESetT6(stack(connU, dims=1))
-    end
-    fensu = FENodeSet(stack(XU, dims=1))
-    # if tri_order==2
-    #     fensu, fesu = T3toT6(fensu, fesu)
-    # end
+
 
     push!(IA, 1)
-    push!(JA, size(XA, 1))
+    push!(JA, dim_u*size(XA, 1))
     push!(VA, 0.0)
 
 
@@ -477,13 +478,24 @@ function common_refinement(fensA, fesA, fensB, fesB; h = 0.1, lam_order = 1, tri
     # PiA = 0
     # PiB = 0
 
-    
-    kappa = [1.0 0; 0 1.0] 
-    material = MatHeatDiff(kappa)
+    E = 1.0
+    nu = 1/3
+    MR = DeforModelRed3D
+    # @infiltrate
+    material = MatDeforElastIso(MR, 1.0, E, nu, 0.0)
+    if tri_order ==1
+        fesu = FESetT3(stack(connU, dims=1))
+    elseif tri_order == 2
+        fesu = FESetT6(stack(connU, dims=1))
+    end
+    fensu = FENodeSet(stack(XU, dims=1))
+    # if tri_order==2
+    #     fensu, fesu = T3toT6(fensu, fesu)
+    # end
     geomu = NodalField(fensu.xyz)
-    uu = NodalField(zeros(size(fensu.xyz, 1), 1))
+    uu = NodalField(zeros(size(fensu.xyz, 1), dim_u))
     numberdofs!(uu)
-    femmu = FEMMHeatDiff(IntegDomain(fesu, TriRule(6)), material)
+    femmu = FEMMDeforLinear(MR, IntegDomain(fesu, TriRule(6)), material)
 
     if lam_order ==1
         M = mass(femmu, geomu, uu)
