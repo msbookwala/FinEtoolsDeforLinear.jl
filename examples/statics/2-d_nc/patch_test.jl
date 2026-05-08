@@ -148,20 +148,51 @@ scattersysvec!(u1, X[1:size(K1_ff,1)])
 scattersysvec!(u2, X[size(K1_ff,1)+1:size(K1_ff,1)+size(K2_ff,1)])
 scattersysvec!(u_i, X[size(K1_ff,1)+size(K2_ff,1)+1:end])
 
-File1 = "two_sd_1.vtk"
+err1 = L2_err(femm, geom1, u1, ux, uy)
+err2 = L2_err(femm2, geom2, u2, ux, uy)
+
+
+# File1 = "Patch_1.vtk"
+# vtkexportmesh(
+#     File1,
+#     fes1.conn,
+#     geom1.values,
+#     exporter1;
+#     vectors = [("u", u1.values)],
+# )
+# File2 = "Patch_2.vtk"
+# vtkexportmesh(
+#     File2,
+#     fes2.conn,
+#     geom2.values,
+#     exporter2;
+#     vectors = [("u", u2.values)],
+# )
+
+filename = "Patcht_1.vtk"
 vtkexportmesh(
-    File1,
-    fes1.conn,
-    geom1.values,
-    exporter1;
-    vectors = [("u", u1.values)],
+    filename,
+    fens1,
+    fes1;
+    scalars = [
+        
+        ("Err", err1.values)
+    ],
+    vectors = [
+        ("u", u1.values)
+    ]
 )
-File2 = "two_sd_2.vtk"
+
+filename = "Patcht_2.vtk"
 vtkexportmesh(
-    File2,
-    fes2.conn,
-    geom2.values,
-    exporter2;
-    vectors = [("u", u2.values)],
+    filename,
+    fens2,
+    fes2;
+    scalars = [
+        ("Err", err2.values)
+    ],
+    vectors = [
+        ("u", u2.values)
+    ]
 )
-println(u_i.values)
+# println(u_i.values)

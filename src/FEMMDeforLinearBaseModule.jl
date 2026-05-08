@@ -17,6 +17,7 @@ using FinEtools.FieldModule:
     gathervalues_asmat!,
     nalldofs
 using FinEtools.NodalFieldModule: NodalField, nnodes
+using FinEtools.ElementalFieldModule: ElementalField
 using FinEtools.AssemblyModule:
     AbstractSysvecAssembler,
     AbstractSysmatAssembler,
@@ -548,6 +549,35 @@ function mass_like(
 ) where {GFT<:Number,UFT<:Number}
     assembler = SysmatAssemblerSparse()
     return mass_like(self, assembler, geom, u)
+end
+
+
+
+function L2_err(self::AbstractFEMMDeforLinear,
+    geom::NodalField{GFT},
+    temp::NodalField{FT}, exact_x, exact_y) where {GFT, FT}
+    fes = self.integdomain.fes
+    npts, Ns, gradNparams, w, pc = integrationdata(self.integdomain)
+    # Prepare assembler and buffers
+    ecoords, dofnums, loc, J, RmTJ, gradN, kappa_bar, kappa_bargradNT, elmat, elvec, elvecfix = _buffers(self,
+        geom,
+        temp)
+    # Thermal conductivity matrix is in local  material coordinates.
+    err = ElementalField(zeros(count(fes), 1))
+    # Now loop over all finite elements in the set
+    for i in 1:count(fes) # Loop over elements
+        gathervalues_asmat!(geom, ecoords, fes.conn[i])
+        # gathervalues_asmat!(temp, elvec, fes.conn[i])# retrieve element coordinates
+        elvec = temp.values[[fes.conn[i]...], :]
+        for j in 1:npts # Loop over quadrature points
+            locjac!(loc, J, ecoords, Ns[j], gradNparams[j])
+            Jac = Jacobianvolume(self.integdomain, J, loc, fes.conn[i], Ns[j])
+            err.values[i] += ((elvec[:,1]' * Ns[j])[1] - exact_x((ecoords' * Ns[j])[1], (ecoords' * Ns[j])[2]))^2 * (Jac * w[j])
+            err.values[i] += ((elvec[:,2]' * Ns[j])[1] - exact_y((ecoords' * Ns[j])[1], (ecoords' * Ns[j])[2]))^2 * (Jac * w[j])
+        end # Loop over quadrature points
+        err.values[i] = sqrt(err.values[i])
+    end
+    return err
 end
 
 end
