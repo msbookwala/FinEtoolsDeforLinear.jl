@@ -466,10 +466,13 @@ function common_refinement(fensA, fesA, fensB, fesB; h = 0.1, lam_order = 1, tri
     end
     # making dimensions consistent for C/D
 
-
     push!(IA, 1)
     push!(JA, dim_u*size(XA, 1))
     push!(VA, 0.0)
+
+    push!(IB, 1)
+    push!(JB, dim_u*size(XB, 1))
+    push!(VB, 0.0)
 
 
     PiA = sparse(IA, JA, VA)
