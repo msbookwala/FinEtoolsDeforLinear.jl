@@ -165,6 +165,7 @@ for zi in 1:2
             for i in 1:3
                 
                 D, meta = common_refinement(fens, interface_fes[i], fens_is[i], fes_is[i]; lam_order=lam_orders[i], h=0.3, dim_u=3)
+                @infiltrate
                 D = D_signs[i][index] * D
                 dbc_dofs = sort([3*dbc_nodes.-2; 3*dbc_nodes.-1; 3*dbc_nodes])
                 global f_lams[i] += -(D[:, dbc_dofs] * gathersysvec(u, :d))

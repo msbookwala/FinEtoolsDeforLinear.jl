@@ -21,7 +21,7 @@ N_elem_i = min(N_elem1, N_elem2)
 left_m = "t"
 right_m = "t"
 skew = 0.0
-lam_order = 1
+lam_order = 0
 
 
 alpha0, alpha1, alpha2, alpha3, beta0, beta1, beta2, beta3, gamma0, gamma1, gamma2, gamma3 =

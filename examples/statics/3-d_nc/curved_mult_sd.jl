@@ -64,7 +64,7 @@ interface_boxes = [[0.5, 0.5, 0.0, 1.0, 0.0, 1.0], # x_normal
 
 # ####### interface meshes #####################################
 
-nelem_is = [4,3,5]
+nelem_is = [4,5,5]
 perumutes = [[1,2,3], #x normal
             [2,1,3], #y normal
              [3,2,1]] #z normal
@@ -143,8 +143,7 @@ for zi in 1:2
             fens.xyz[:, 2] .+= (yi-1)*0.5
             fens.xyz[:, 3] .+= (zi-1)*0.5
 
-            geom = NodalField(fens.xyz)
-            u = NodalField(zeros(size(fens.xyz, 1), 3)) # displacement field
+            
 
             boundaryfes = meshboundary(fes)
             dbc_nodes = []
@@ -170,6 +169,8 @@ for zi in 1:2
             # fens.xyz[:,3]+=bends[3]*sin.(pi.*fens.xyz[:,1]).*sin.(pi.*fens.xyz[:,2]).*sin.(pi.*fens.xyz[:,3])
 
             bend_map(fens.xyz, bends)
+            geom = NodalField(fens.xyz)
+            u = NodalField(zeros(size(fens.xyz, 1), 3)) # displacement field
             for i in dbc_nodes
                 setebc!(u, [i], 1, ux(fens.xyz[i, :]...))
                 setebc!(u, [i], 2, uy(fens.xyz[i, :]...))

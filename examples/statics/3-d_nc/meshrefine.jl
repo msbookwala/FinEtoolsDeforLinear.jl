@@ -414,8 +414,8 @@ function common_refinement(fensA, fesA, fensB, fesB; h = 0.1, lam_order = 1, tri
                         push!(parentA, i)
                         push!(parentB, j)
                         if lam_order==0
-                            push!(IB, [dim_u*(size(connU,1)-1) + j for j in 1:dim_u]...)
-                            push!(JB, [dim_u*(size(connU,1)-1) + j for j in 1:dim_u]...)
+                            push!(IB, [dim_u*(size(connU,1)-1) + ind for ind in 1:dim_u]...)
+                            push!(JB, [dim_u*(j-1) + ind for ind in 1:dim_u]...)
                             push!(VB, [ 1.0 for j in 1:dim_u]...)
                         end
                     end
@@ -469,10 +469,15 @@ function common_refinement(fensA, fesA, fensB, fesB; h = 0.1, lam_order = 1, tri
     push!(IA, 1)
     push!(JA, dim_u*size(XA, 1))
     push!(VA, 0.0)
-
-    push!(IB, 1)
-    push!(JB, dim_u*size(XB, 1))
-    push!(VB, 0.0)
+    if lam_order ==1
+        push!(IB, 1)
+        push!(JB, dim_u*size(XB, 1))
+        push!(VB, 0.0)
+    elseif lam_order == 0
+        push!(IB, 1)
+        push!(JB, dim_u*size(fesB.conn, 1))
+        push!(VB, 0.0)
+    end
 
 
     PiA = sparse(IA, JA, VA)
