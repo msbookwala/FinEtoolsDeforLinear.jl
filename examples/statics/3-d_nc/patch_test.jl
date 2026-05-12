@@ -20,8 +20,8 @@ N_elem2 = 3
 N_elem_i = min(N_elem1, N_elem2)
 left_m = "t"
 right_m = "t"
-skew = 0.0
-lam_order = 0
+bend = 0.0
+lam_order = 1
 
 
 alpha0, alpha1, alpha2, alpha3, beta0, beta1, beta2, beta3, gamma0, gamma1, gamma2, gamma3 =
@@ -48,7 +48,7 @@ edge_fes1 = subset(boundaryfes1, edge_fe_idx1)
 dbc_fes_idx1 = setdiff(1:count(boundaryfes1), edge_fe_idx1)
 
 
-fens1.xyz[:, 1] .+= skew * fens1.xyz[:, 1].*(fens1.xyz[:, 2] .- 1.0)
+fens1.xyz[:, 1] .+= bend * fens1.xyz[:, 1].*(fens1.xyz[:, 2] .- 0.5).^2#
 
 
 geom1 = NodalField(fens1.xyz)
@@ -92,7 +92,7 @@ edge_fe_idx2 = selectelem(fens2, boundaryfes2, box=[0.5,0.5, 0.0,height2, 0.0,de
 edge_fes2 = subset(boundaryfes2, edge_fe_idx2)
 dbc_fes_idx2 = setdiff(1:count(boundaryfes2), edge_fe_idx2)
 
-fens2.xyz[:, 1] .+= skew * (2.0 .-fens2.xyz[:, 1]).*(fens2.xyz[:, 2] .- 1.0)
+fens2.xyz[:, 1] .+= bend * (1.0 .-fens2.xyz[:, 1]).*(fens2.xyz[:, 2] .- 0.5).^2
 
 geom2 = NodalField(fens2.xyz)
 u2 = NodalField(zeros(size(fens2.xyz, 1), 3)) # displacement field
@@ -119,8 +119,10 @@ edge_nodes2 = selectnode(fens2; box=[1.0, 1.0, 0.0, height2, 0.0, depth2], infla
 xs_i = 0.5
 ys_i = collect(linearspace(0.0, 1.0, N_elem_i+1))
 zs_i = collect(linearspace(0.0, 1.0, N_elem_i+1))
-fens_i, fes_i = T3blockx(ys_i, zs_i, :a)
+# fens_i, fes_i = T3blockx(ys_i, zs_i, :a)
+fens_i, fes_i = Q4blockx(ys_i, zs_i)
 fens_i.xyz = hcat(xs_i*ones(size(fens_i.xyz, 1), 1), fens_i.xyz)
+fens_i.xyz[:, 1] .+= bend * fens_i.xyz[:, 1].*(fens_i.xyz[:, 2] .- 0.5).^2
 
 geom_i = NodalField(fens_i.xyz)
 if lam_order == 0
@@ -130,8 +132,8 @@ else
 end
 numberdofs!(u_i)
 femm_i = FEMMDeforLinear(MR, IntegDomain(fes_i, Rule1), material)
-@time D1, meta1 = common_refinement(fens1, edge_fes1, fens_i, fes_i; lam_order=lam_order, h=0.03, dim_u=3)
-@time D2, meta2 = common_refinement(fens2, edge_fes2, fens_i, fes_i; lam_order=lam_order, h=0.3, dim_u=3)
+@time D1, meta1 = common_refinement(fens1, edge_fes1, fens_i, fes_i; lam_order=lam_order, h=0.03, dim_u=3, tri_order = 2,)
+@time D2, meta2 = common_refinement(fens2, edge_fes2, fens_i, fes_i; lam_order=lam_order, h=0.3, dim_u=3, tri_order = 2,)
 # error("The 3D patch test is not implemented yet. Please use the 2D version instead.")
 
 # D1,Pi_NC1,Pi_phi1 = build_D_matrix(fens_i, fes_i, fens1, edge_fes1; lam_order=lam_order,tol=1e-8)

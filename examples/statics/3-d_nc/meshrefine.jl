@@ -400,13 +400,13 @@ function common_refinement(fensA, fesA, fensB, fesB; h = 0.1, lam_order = 1, tri
 
                             mid12_id = get_node_id(mid12, node_map, XU,
                                                     ai, ax, IA, JA, VA, 
-                                                    bi, bx, IB, JB, VB; order=lam_order)
+                                                    bi, bx, IB, JB, VB; order=lam_order, dim_u=dim_u)
                             mid23_id = get_node_id(mid23, node_map, XU,
                                                     ai, ax, IA, JA, VA, 
-                                                    bi, bx, IB, JB, VB; order=lam_order)
+                                                    bi, bx, IB, JB, VB; order=lam_order, dim_u=dim_u)
                             mid31_id = get_node_id(mid31, node_map, XU,
                                                     ai, ax, IA, JA, VA, 
-                                                    bi, bx, IB, JB, VB; order=lam_order)
+                                                    bi, bx, IB, JB, VB; order=lam_order, dim_u=dim_u)
 
                             conn_cuurent = [conn[1], conn[k-1], conn[k], mid12_id, mid23_id, mid31_id]
                         end
@@ -429,7 +429,7 @@ function common_refinement(fensA, fesA, fensB, fesB; h = 0.1, lam_order = 1, tri
                 centroid ./= nv
                 cnid = get_node_id(centroid, node_map, XU,
                             ai, ax, IA, JA, VA, 
-                            bi, bx, IB, JB, VB; order=lam_order)
+                            bi, bx, IB, JB, VB; order=lam_order, dim_u=dim_u)
                 # triangulate using centroid as Steiner 
                 for k in 1:nv
                     conn_cuurent = [conn[k], conn[mod1(k+1, nv)], cnid]
@@ -442,13 +442,13 @@ function common_refinement(fensA, fesA, fensB, fesB; h = 0.1, lam_order = 1, tri
 
                         mid12_id = get_node_id(mid12, node_map, XU,
                                                 ai, ax, IA, JA, VA, 
-                                                bi, bx, IB, JB, VB; order=lam_order)
+                                                bi, bx, IB, JB, VB; order=lam_order, dim_u=dim_u)
                         mid23_id = get_node_id(mid23, node_map, XU,
                                                 ai, ax, IA, JA, VA, 
-                                                bi, bx, IB, JB, VB; order=lam_order)
+                                                bi, bx, IB, JB, VB; order=lam_order, dim_u=dim_u)
                         mid31_id = get_node_id(mid31, node_map, XU,
                                                 ai, ax, IA, JA, VA, 
-                                                bi, bx, IB, JB, VB; order=lam_order)
+                                                bi, bx, IB, JB, VB; order=lam_order, dim_u=dim_u)
 
                         conn_cuurent = [conn[k], conn[mod1(k+1,nv)], cnid , mid12_id, mid23_id, mid31_id]
                     end
@@ -466,22 +466,19 @@ function common_refinement(fensA, fesA, fensB, fesB; h = 0.1, lam_order = 1, tri
     end
     # making dimensions consistent for C/D
 
-    push!(IA, 1)
-    push!(JA, dim_u*size(XA, 1))
-    push!(VA, 0.0)
-    if lam_order ==1
-        push!(IB, 1)
-        push!(JB, dim_u*size(XB, 1))
-        push!(VB, 0.0)
-    elseif lam_order == 0
-        push!(IB, 1)
-        push!(JB, dim_u*size(fesB.conn, 1))
-        push!(VB, 0.0)
+    nXu = length(XU)
+    nUe = length(connU)
+
+    nA_dofs = dim_u * size(XA, 1)
+    nB_dofs = lam_order == 0 ? dim_u * size(connB, 1) : dim_u * size(XB, 1)
+
+    PiA = sparse(IA, JA, VA, dim_u * nXu, nA_dofs)
+
+    if lam_order == 0
+        PiB = sparse(IB, JB, VB, dim_u * nUe, dim_u * size(connB, 1))
+    else
+        PiB = sparse(IB, JB, VB, dim_u * nXu, dim_u * size(XB, 1))
     end
-
-
-    PiA = sparse(IA, JA, VA)
-    PiB = sparse(IB, JB, VB)
 
     # PiA = 0
     # PiB = 0
