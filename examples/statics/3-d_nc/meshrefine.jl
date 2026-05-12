@@ -154,7 +154,7 @@ function get_node_id(x::Vector{Float64}, node_map, XU,
         push!(XU, x)
         
         baryA = barycentre(x, ax)
-        # @infiltrate
+        # 
         nids_a = vcat([[dim_u*(size(XU,1)-1) + j for j in 1:dim_u] for k in 1:length(ai)]...)
         nids_b = vcat([[dim_u*(size(XU,1)-1) + j for j in 1:dim_u] for k in 1:length(bi)]...)
 
@@ -322,7 +322,7 @@ function common_refinement(fensA, fesA, fensB, fesB; h = 0.1, lam_order = 1, tri
     nA = size(connA,1)
     nB = size(connB,1)
     pad = 1e-2
-    # @infiltrate
+    # 
     gridB = build_grid(XB, connB; h=h, pad=pad)
 
     parentA = Int[]
@@ -465,6 +465,7 @@ function common_refinement(fensA, fesA, fensB, fesB; h = 0.1, lam_order = 1, tri
         end
     end
     # making dimensions consistent for C/D
+    
 
     nXu = length(XU)
     nUe = length(connU)
@@ -486,7 +487,7 @@ function common_refinement(fensA, fesA, fensB, fesB; h = 0.1, lam_order = 1, tri
     E = 1.0
     nu = 1/3
     MR = DeforModelRed3D
-    # @infiltrate
+    # 
     material = MatDeforElastIso(MR, 1.0, E, nu, 0.0)
     if tri_order ==1
         fesu = FESetT3(stack(connU, dims=1))

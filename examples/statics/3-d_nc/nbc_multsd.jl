@@ -14,7 +14,7 @@ bends = [0.1, 0.0, 0.0]
 
 nelem_is = [10,10,10]
 N_elemes = [5,5,5,5,5,5,5,5]
-# nelem_is = [2,2,2]
+# nelem_is = [4,4,4]
 # N_elemes = [1,1,1,1,1,1,1,1]
 types = ["t", "t", "t", "t", "t", "t", "t", "t"]
 tri_order = 1
@@ -100,7 +100,7 @@ for i in 1:3
     i_linspace = collect(linearspace(0.0, 1.0, nelem_is[i]+1))
     if interface_type == "t"
         if i==3
-            fens_i, fes_i = T3blockx(i_linspace, i_linspace, :a)
+            fens_i, fes_i = T3blockx(i_linspace, i_linspace, :b)
         else
             
             fens_i, fes_i = T3blockx(i_linspace, i_linspace, :b)
@@ -235,7 +235,7 @@ for zi in 1:2
                 # push!(f_lams, -D[:, dbc_dofs] * gathersysvec(u, :d))
                 D = D[:, setdiff(1:3*count(fens), dbc_dofs)]
                 push!(D_list, D)
-                # push!(meta_list, meta)
+                push!(meta_list, meta)
 
                 # filename = "$folder/union_$(index)_$(i).vtk"
                 # vtkexportmesh(

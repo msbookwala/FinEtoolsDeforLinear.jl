@@ -23,9 +23,9 @@ nu = 1/3
 MR = DeforModelRed3D
 material = MatDeforElastIso(MR, 0.0, E, nu, 0.0)
 
-lam_orders = [0,0,0]
-# lam_orders = [1,1,1]
-bends = [0.1, 0.1, 0.1]
+# lam_orders = [0,0,0]
+lam_orders = [1,1,1]
+bends = [0.1, 0.1, 0.1]*0
 function bend_map(xyz, bends)
     X0 = copy(xyz)   # important: always use original/reference coordinates
 
@@ -59,8 +59,8 @@ interface_boxes = [[0.5, 0.5, 0.0, 1.0, 0.0, 1.0], # x_normal
 
 # ####### interface meshes #####################################
 
-nelem_is = [8,8,8]
-# nelem_is = [10,10,10]
+# nelem_is = [8,8,8]
+nelem_is = [10,10,10]
 perumutes = [[1,2,3], #x normal
             [2,1,3], #y normal
              [3,2,1]] #z normal
