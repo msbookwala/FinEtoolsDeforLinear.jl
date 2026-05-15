@@ -502,9 +502,18 @@ function common_refinement(fensA, fesA, fensB, fesB; h = 0.1, lam_order = 1, tri
     uu = NodalField(zeros(size(fensu.xyz, 1), dim_u))
     numberdofs!(uu)
     femmu = FEMMDeforLinear(MR, IntegDomain(fesu, TriRule(6)), material)
+    # femmu = FEMMDeforLinear(MR, IntegDomain(fesu, NodalSimplexRule(3)), material)
 
     if lam_order ==1
+        # @infiltrate
         M = mass(femmu, geomu, uu)
+
+        # onevec = ones(size(M, 1))
+        # M = spdiagm(M * onevec)
+
+        # total_mass = sum(M)
+        # diagM = diag(M)
+        # M = spdiagm(diagM * total_mass / sum(diagM))
     elseif lam_order == 0
         M = mass_like(femmu, geomu, uu)
     end

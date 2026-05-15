@@ -8,7 +8,7 @@ using Infiltrator
 include("meshrefine.jl")
 
 
-println("Q4. Plane stress.")
+# println("Q4. Plane stress.")
 
 E = 1.0
 nu = 1/3
@@ -132,8 +132,8 @@ else
 end
 numberdofs!(u_i)
 femm_i = FEMMDeforLinear(MR, IntegDomain(fes_i, Rule1), material)
-@time D1, meta1 = common_refinement(fens1, edge_fes1, fens_i, fes_i; lam_order=lam_order, h=0.03, dim_u=3, tri_order = 2,)
-@time D2, meta2 = common_refinement(fens2, edge_fes2, fens_i, fes_i; lam_order=lam_order, h=0.3, dim_u=3, tri_order = 2,)
+@time D1, meta1 = common_refinement(fens1, edge_fes1, fens_i, fes_i; lam_order=lam_order, h=0.03, dim_u=3, tri_order = 1,)
+@time D2, meta2 = common_refinement(fens2, edge_fes2, fens_i, fes_i; lam_order=lam_order, h=0.3, dim_u=3, tri_order = 1,)
 # error("The 3D patch test is not implemented yet. Please use the 2D version instead.")
 
 # D1,Pi_NC1,Pi_phi1 = build_D_matrix(fens_i, fes_i, fens1, edge_fes1; lam_order=lam_order,tol=1e-8)
