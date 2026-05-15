@@ -279,9 +279,9 @@ for i in 1:8
     
     err = L2_err3D(femm_list[i], geom_list[i], u_list[i], ux, uy, uz)
 
-    filename = "$filename/mesh_$(i).vtk"
+    fn = "$filename/mesh_$(i).vtk"
             vtkexportmesh(
-                filename,
+                fn,
                 fens_list[i],
                 fes_list[i];
                 scalars = [ ("Err", err.values)
@@ -299,9 +299,9 @@ for i in 1:3
     scattersysvec!(u_i, X[offset+1:offset+ndofs_i])
     global offset += ndofs_i
 
-    filename = "$filename/mesh_interface_$(i).vtk"
+    fn = "$filename/mesh_interface_$(i).vtk"
             vtkexportmesh(
-                filename,
+                fn,
                 fens_is[i],
                 fes_is[i];
                 scalars = [
