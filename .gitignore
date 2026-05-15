@@ -12,3 +12,4 @@ docs/build/
 *.enl
 *.bak
 test/playground.jl
+examples/Cookstress_algo_stress.inp

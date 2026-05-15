@@ -9,7 +9,7 @@ using IterativeSolvers
 include("meshrefine.jl")
 
 # check if folder exists
-filename = "curved_mult_sd"
+filename = "curved_mult_sd_unsolved"
 if !isdir(filename)
     mkdir(filename)
 else
